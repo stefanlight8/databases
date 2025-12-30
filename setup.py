@@ -7,15 +7,20 @@ import re
 from setuptools import setup
 
 
-def get_version(package):
+def get_version(package: str) -> str:
     """
     Return package version as listed in `__version__` in `init.py`.
     """
     with open(os.path.join(package, "__init__.py")) as f:
-        return re.search("__version__ = ['\"]([^'\"]+)['\"]", f.read()).group(1)
+        _match: re.Match[str] | None = re.search(
+            r"__version__\s*=\s*['\"]([^'\"]+)['\"]", f.read()
+        )
+        if _match is not None:
+            return _match.group(1)
+        raise ValueError(f"__version__ not found in {package}/__init__.py")
 
 
-def get_long_description():
+def get_long_description() -> str:
     """
     Return the README.
     """
@@ -23,13 +28,13 @@ def get_long_description():
         return f.read()
 
 
-def get_packages(package):
+def get_packages(package: str) -> list[str]:
     """
     Return root package and all sub-packages.
     """
     return [
         dirpath
-        for dirpath, dirnames, filenames in os.walk(package)
+        for dirpath, _, _ in os.walk(package)
         if os.path.exists(os.path.join(dirpath, "__init__.py"))
     ]
 
