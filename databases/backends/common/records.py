@@ -1,12 +1,9 @@
-import enum
 import typing
-from datetime import date, datetime, time
 
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.engine.row import Row as SQLRow
-from sqlalchemy.sql.compiler import _CompileLabel
+from sqlalchemy.sql.compiler import _CompileLabel, ResultColumnsEntry
 from sqlalchemy.sql.schema import Column
-from sqlalchemy.sql.sqltypes import JSON
 from sqlalchemy.types import TypeEngine
 
 from databases.interfaces import Record as RecordInterface
@@ -27,12 +24,12 @@ class Record(RecordInterface):
     def __init__(
         self,
         row: typing.Any,
-        result_columns: tuple,
+        result_columns: list[ResultColumnsEntry] | None,
         dialect: Dialect,
         column_maps: typing.Tuple[
-            typing.Mapping[typing.Any, typing.Tuple[int, TypeEngine]],
-            typing.Mapping[int, typing.Tuple[int, TypeEngine]],
-            typing.Mapping[str, typing.Tuple[int, TypeEngine]],
+            typing.Mapping[typing.Any, typing.Tuple[int, TypeEngine[typing.Any]]],
+            typing.Mapping[int, typing.Tuple[int, TypeEngine[typing.Any]]],
+            typing.Mapping[str, typing.Tuple[int, TypeEngine[typing.Any]]],
         ],
     ) -> None:
         self._row = row
@@ -41,13 +38,13 @@ class Record(RecordInterface):
         self._column_map, self._column_map_int, self._column_map_full = column_maps
 
     @property
-    def _mapping(self) -> typing.Mapping:
+    def _mapping(self) -> typing.Mapping[str, typing.Any]:
         return self._row
 
-    def keys(self) -> typing.KeysView:
+    def keys(self) -> typing.KeysView[str]:
         return self._mapping.keys()
 
-    def values(self) -> typing.ValuesView:
+    def values(self) -> typing.ValuesView[typing.Any]:
         return self._mapping.values()
 
     def __getitem__(self, key: typing.Any) -> typing.Any:
@@ -69,7 +66,7 @@ class Record(RecordInterface):
 
         return raw
 
-    def __iter__(self) -> typing.Iterator:
+    def __iter__(self) -> typing.Iterator[str]:
         return iter(self._row.keys())
 
     def __len__(self) -> int:
@@ -82,7 +79,7 @@ class Record(RecordInterface):
             raise AttributeError(e.args[0]) from e
 
 
-class Row(SQLRow):
+class Row(SQLRow[tuple[typing.Any, ...]]):
     def __getitem__(self, key: typing.Any) -> typing.Any:
         """
         An instance of a Row in SQLAlchemy allows the access
@@ -105,9 +102,9 @@ class Row(SQLRow):
 def create_column_maps(
     result_columns: typing.Any,
 ) -> typing.Tuple[
-    typing.Mapping[typing.Any, typing.Tuple[int, TypeEngine]],
-    typing.Mapping[int, typing.Tuple[int, TypeEngine]],
-    typing.Mapping[str, typing.Tuple[int, TypeEngine]],
+    typing.Mapping[typing.Any, typing.Tuple[int, TypeEngine[typing.Any]]],
+    typing.Mapping[int, typing.Tuple[int, TypeEngine[typing.Any]]],
+    typing.Mapping[str, typing.Tuple[int, TypeEngine[typing.Any]]],
 ]:
     """
     Generate column -> datatype mappings from the column definitions.

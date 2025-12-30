@@ -42,7 +42,7 @@ class ConnectionBackend:
 
     async def iterate(
         self, query: ClauseElement
-    ) -> typing.AsyncGenerator[typing.Mapping, None]:
+    ) -> typing.AsyncGenerator[typing.Mapping[str, typing.Any], None]:
         raise NotImplementedError()  # pragma: no cover
         # mypy needs async iterators to contain a `yield`
         # https://github.com/python/mypy/issues/5385#issuecomment-407281656
@@ -69,9 +69,9 @@ class TransactionBackend:
         raise NotImplementedError()  # pragma: no cover
 
 
-class Record(Sequence):
+class Record(Sequence[typing.Any]):  # @stefanlight8: I guess
     @property
-    def _mapping(self) -> typing.Mapping:
+    def _mapping(self) -> typing.Mapping[str, typing.Any]:
         raise NotImplementedError()  # pragma: no cover
 
     def __getitem__(self, key: typing.Any) -> typing.Any:

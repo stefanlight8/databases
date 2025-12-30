@@ -18,22 +18,22 @@ try:  # pragma: no cover
     import click
 
     # Extra log info for optional coloured terminal outputs.
-    LOG_EXTRA = {
+    LOG_EXTRA: dict[str, str] = {
         "color_message": "Query: " + click.style("%s", bold=True) + " Args: %s"
     }
-    CONNECT_EXTRA = {
+    CONNECT_EXTRA: dict[str, str] = {
         "color_message": "Connected to database " + click.style("%s", bold=True)
     }
-    DISCONNECT_EXTRA = {
+    DISCONNECT_EXTRA: dict[str, str] = {
         "color_message": "Disconnected from database " + click.style("%s", bold=True)
     }
 except ImportError:  # pragma: no cover
-    LOG_EXTRA = {}
-    CONNECT_EXTRA = {}
-    DISCONNECT_EXTRA = {}
+    LOG_EXTRA: dict[str, str] = {}  # type: ignore
+    CONNECT_EXTRA: dict[str, str] = {}  # type: ignore
+    DISCONNECT_EXTRA: dict[str, str] = {}  # type: ignore
 
 
-logger = logging.getLogger("databases")
+logger: logging.Logger = logging.getLogger("databases")
 
 
 _ACTIVE_TRANSACTIONS: ContextVar[
@@ -42,7 +42,7 @@ _ACTIVE_TRANSACTIONS: ContextVar[
 
 
 class Database:
-    SUPPORTED_BACKENDS = {
+    SUPPORTED_BACKENDS: dict[str, str] = {
         "postgresql": "databases.backends.postgres:PostgresBackend",
         "postgresql+aiopg": "databases.backends.aiopg:AiopgBackend",
         "postgres": "databases.backends.postgres:PostgresBackend",
@@ -51,7 +51,7 @@ class Database:
         "sqlite": "databases.backends.sqlite:SQLiteBackend",
     }
 
-    _connection_map: "weakref.WeakKeyDictionary[asyncio.Task, 'Connection']"
+    _connection_map: "weakref.WeakKeyDictionary[asyncio.Task[typing.Any], 'Connection']"
 
     def __init__(
         self,
@@ -59,7 +59,7 @@ class Database:
         *,
         force_rollback: bool = False,
         **options: typing.Any,
-    ):
+    ) -> None:
         self.url = DatabaseURL(url)
         self.options = options
         self.is_connected = False
@@ -78,7 +78,7 @@ class Database:
         self._global_transaction: typing.Optional[Transaction] = None
 
     @property
-    def _current_task(self) -> asyncio.Task:
+    def _current_task(self) -> asyncio.Task[typing.Any]:
         task = asyncio.current_task()
         if not task:
             raise RuntimeError("No currently active asyncio.Task found")
@@ -168,7 +168,7 @@ class Database:
     async def fetch_all(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> typing.List[Record]:
         async with self.connection() as connection:
             return await connection.fetch_all(query, values)
@@ -176,7 +176,7 @@ class Database:
     async def fetch_one(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> typing.Optional[Record]:
         async with self.connection() as connection:
             return await connection.fetch_one(query, values)
@@ -184,7 +184,7 @@ class Database:
     async def fetch_val(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
         column: typing.Any = 0,
     ) -> typing.Any:
         async with self.connection() as connection:
@@ -193,13 +193,15 @@ class Database:
     async def execute(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> typing.Any:
         async with self.connection() as connection:
             return await connection.execute(query, values)
 
     async def execute_many(
-        self, query: typing.Union[ClauseElement, str], values: list
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Sequence[typing.Any],
     ) -> None:
         async with self.connection() as connection:
             return await connection.execute_many(query, values)
@@ -207,8 +209,8 @@ class Database:
     async def iterate(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
-    ) -> typing.AsyncGenerator[typing.Mapping, None]:
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
+    ) -> typing.AsyncGenerator[typing.Mapping[str, typing.Any], None]:
         async with self.connection() as connection:
             async for record in connection.iterate(query, values):
                 yield record
@@ -283,7 +285,7 @@ class Connection:
     async def fetch_all(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> typing.List[Record]:
         built_query = self._build_query(query, values)
         async with self._query_lock:
@@ -292,7 +294,7 @@ class Connection:
     async def fetch_one(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> typing.Optional[Record]:
         built_query = self._build_query(query, values)
         async with self._query_lock:
@@ -301,7 +303,7 @@ class Connection:
     async def fetch_val(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
         column: typing.Any = 0,
     ) -> typing.Any:
         built_query = self._build_query(query, values)
@@ -311,14 +313,16 @@ class Connection:
     async def execute(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> typing.Any:
         built_query = self._build_query(query, values)
         async with self._query_lock:
             return await self._connection.execute(built_query)
 
     async def execute_many(
-        self, query: typing.Union[ClauseElement, str], values: list
+        self,
+        query: typing.Union[ClauseElement, str],
+        values: typing.Sequence[typing.Any],
     ) -> None:
         queries = [self._build_query(query, values_set) for values_set in values]
         async with self._query_lock:
@@ -327,7 +331,7 @@ class Connection:
     async def iterate(
         self,
         query: typing.Union[ClauseElement, str],
-        values: typing.Optional[dict] = None,
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> typing.AsyncGenerator[typing.Any, None]:
         built_query = self._build_query(query, values)
         async with self.transaction():
@@ -349,7 +353,8 @@ class Connection:
 
     @staticmethod
     def _build_query(
-        query: typing.Union[ClauseElement, str], values: typing.Optional[dict] = None
+        query: typing.Union[ClauseElement, str],
+        values: typing.Optional[typing.Mapping[str, typing.Any]] = None,
     ) -> ClauseElement:
         if isinstance(query, str):
             query = text(query)
@@ -361,7 +366,7 @@ class Connection:
         return query
 
 
-_CallableType = typing.TypeVar("_CallableType", bound=typing.Callable)
+_CallableType = typing.TypeVar("_CallableType", bound=typing.Callable[..., typing.Any])
 
 
 class Transaction:
@@ -392,7 +397,9 @@ class Transaction:
     def _transaction(
         self, transaction: typing.Optional["TransactionBackend"]
     ) -> typing.Optional["TransactionBackend"]:
-        transactions = _ACTIVE_TRANSACTIONS.get()
+        transactions: (
+            weakref.WeakKeyDictionary[Transaction, TransactionBackend] | None
+        ) = _ACTIVE_TRANSACTIONS.get()
         if transactions is None:
             transactions = weakref.WeakKeyDictionary()
         else:
@@ -485,7 +492,7 @@ class DatabaseURL:
     def __init__(self, url: typing.Union[str, "DatabaseURL"]):
         if isinstance(url, DatabaseURL):
             self._url: str = url._url
-        elif isinstance(url, str):
+        elif type(url) is str:
             self._url = url
         else:
             raise TypeError(
@@ -557,7 +564,7 @@ class DatabaseURL:
         return unquote(path)
 
     @property
-    def options(self) -> dict:
+    def options(self) -> dict[str, str]:
         if not hasattr(self, "_options"):
             self._options = dict(parse_qsl(self.components.query))
         return self._options

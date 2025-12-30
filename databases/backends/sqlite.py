@@ -10,6 +10,7 @@ from sqlalchemy.engine.cursor import CursorResultMetaData
 from sqlalchemy.engine.interfaces import Dialect, ExecutionContext
 from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.ddl import DDLElement
+from sqlalchemy.sql.compiler import ResultColumnsEntry
 
 from databases.backends.common.records import Record, Row, create_column_maps
 from databases.core import LOG_EXTRA, DatabaseURL
@@ -29,8 +30,7 @@ class SQLiteBackend(DatabaseBackend):
         self._dialect.supports_native_decimal = False
         self._pool = SQLitePool(self._database_url, **self._options)
 
-    async def connect(self) -> None:
-        ...
+    async def connect(self) -> None: ...
 
     async def disconnect(self) -> None:
         # if it extsis, remove reference to connection to cached in-memory database on disconnect
@@ -130,7 +130,7 @@ class SQLiteConnection(ConnectionBackend):
 
     async def execute(self, query: ClauseElement) -> typing.Any:
         assert self._connection is not None, "Connection is not acquired"
-        query_str, args, result_columns, context = self._compile(query)
+        query_str, args, _, _ = self._compile(query)
         async with self._connection.cursor() as cursor:
             await cursor.execute(query_str, args)
             if cursor.lastrowid == 0:
@@ -164,17 +164,21 @@ class SQLiteConnection(ConnectionBackend):
     def transaction(self) -> TransactionBackend:
         return SQLiteTransaction(self)
 
-    def _compile(self, query: ClauseElement) -> typing.Tuple[str, list, tuple]:
+    def _compile(
+        self, query: ClauseElement
+    ) -> typing.Tuple[
+        str, list[typing.Any], list[ResultColumnsEntry] | None, CompilationContext
+    ]:
         compiled = query.compile(
             dialect=self._dialect, compile_kwargs={"render_postcompile": True}
         )
         execution_context = self._dialect.execution_ctx_cls()
         execution_context.dialect = self._dialect
 
-        args = []
-        result_map = None
+        args: list[typing.Any] = []
+        result_map: list[ResultColumnsEntry] | None = None
 
-        if not isinstance(query, DDLElement):
+        if not isinstance(query, DDLElement) and compiled.params:
             compiled_params = sorted(compiled.params.items())
 
             params = compiled.construct_params()
