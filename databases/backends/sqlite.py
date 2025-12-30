@@ -178,7 +178,7 @@ class SQLiteConnection(ConnectionBackend):
         args: list[typing.Any] = []
         result_map: list[ResultColumnsEntry] | None = None
 
-        if not isinstance(query, DDLElement) and compiled.params:
+        if not isinstance(query, DDLElement):
             compiled_params = sorted(compiled.params.items())
 
             params = compiled.construct_params()
